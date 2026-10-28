@@ -1,7 +1,7 @@
 name: Android APK
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -46,16 +46,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v1.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.1.0 ya publicada."
+          if gh release view v1.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.2.0 ya publicada."
           else
-            gh release create v1.1.0 \
-              "app/build/outputs/apk/debug/app-debug.apk#RoqueOMR_v1.1.0_debug.apk" \
+            gh release create v1.2.0 \
+              "app/build/outputs/apk/debug/app-debug.apk#RoqueOMR_v1.2.0_debug.apk" \
               dist/RoqueOMR_Hoja_Muestra_40_Blanco.pdf \
               dist/RoqueOMR_Hoja_Muestra_40_Resuelta.pdf \
               --repo "$GITHUB_REPOSITORY" \
-              --title "Roque OMR v1.1.0 - Beta" \
-              --notes "Nueva cámara integrada CameraX: detección continua de 4 guías, autocaptura al estabilizarse y superposición de opciones marcadas sobre la imagen congelada. Incluye hojas de muestra. Beta: revisar antes de calificar oficialmente." \
+              --title "Roque OMR v1.2.0 - Beta" \
+              --notes "Nuevo reconocimiento: seis guías negras con centro blanco, validación de homografía A4, dos marcadores laterales y cabecera. Corrige falsas detecciones de burbujas como esquinas. Utiliza solamente hojas PDF v1.2; las anteriores no son compatibles. Beta: revisar antes de calificar oficialmente." \
               --prerelease \
               --target "$GITHUB_SHA"
           fi

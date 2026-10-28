@@ -10,7 +10,7 @@ import kotlin.math.ceil
 import kotlin.math.min
 
 /**
- * A4 points. Four black fiducials at constant positions.
+ * A4 points. Six square fiducials with a white center at fixed positions.
  * All positions use upper-left origin, like Android Canvas.
  */
 object SheetPdf {
@@ -18,6 +18,7 @@ object SheetPdf {
  const val HEIGHT = 842
  val MARKERS = arrayOf(Pair(35.0,35.0),Pair(560.0,35.0),
                        Pair(35.0,807.0),Pair(560.0,807.0))
+ val MID_MARKERS = arrayOf(Pair(35.0,421.0),Pair(560.0,421.0))
  fun columns(n:Int):Int = ceil(n/25.0).toInt().coerceIn(1,4)
  fun rows(n:Int):Int = ceil(n.toDouble()/columns(n)).toInt()
  fun spacing(n:Int):Double = if(rows(n)<2)25.0 else min(25.0,535.0/(rows(n)-1))
@@ -55,7 +56,11 @@ object SheetPdf {
    canvas.drawLine(x.toFloat(),y.toFloat(),x2.toFloat(),y2.toFloat(),paint)
    paint.style=Paint.Style.FILL
   }
-  for ((x,y) in MARKERS) fillRect(x-9,y-9,18.0,18.0,"#000000")
+  // 24pt black ring with 9pt white core. Unlike a filled bubble, its center is white.
+  for ((x,y) in MARKERS + MID_MARKERS) {
+   fillRect(x-12,y-12,24.0,24.0,"#000000")
+   fillRect(x-4.5,y-4.5,9.0,9.0,"#FFFFFF")
+  }
   fillRect(55.0,43.0,485.0,34.0,"#152332")
   label(66.0,66.0,"ROQUE OMR",18.0,true,"#FFFFFF")
   label(405.0,65.0,"HOJA DE RESPUESTAS",8.0,true,"#BFF9EA")
@@ -67,7 +72,7 @@ object SheetPdf {
   label(399.0,126.0,"ID",8.0,true,"#455567")
   line(417.0,129.0,538.0,129.0)
   label(55.0,155.0,"Rellena completamente un solo circulo por pregunta. Usa lapiz o tinta oscura.",9.0)
-  label(55.0,169.0,"No dobles la hoja ni marques los cuatro cuadrados negros de referencia.",9.0)
+  label(55.0,169.0,"No marques las seis guias cuadradas de calibracion.",9.0)
   line(55.0,180.0,540.0,180.0,"#152332")
   val cols=columns(exam.count);val rowCount=rows(exam.count)
   val width=506.0/cols
@@ -91,7 +96,7 @@ object SheetPdf {
    }
   }
   line(55.0,778.0,540.0,778.0)
-  label(55.0,795.0,"ROQUE OMR / FORMATO A4 / v1.0",7.2,true,"#64748B")
+  label(55.0,795.0,"ROQUE OMR / FORMATO A4 / v1.2",7.2,true,"#64748B")
   label(55.0,820.0,"Conserva los margenes completos para una lectura correcta.",7.2,false,"#64748B")
  }
 }
