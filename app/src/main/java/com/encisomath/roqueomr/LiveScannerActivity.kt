@@ -145,7 +145,7 @@ class LiveScannerActivity : ComponentActivity() {
   setContentView(frame)
  }
 
- override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<out String>,grantResults:IntArray) {
+ override fun onRequestPermissionsResult(requestCode:Int,permissions:Array<String>,grantResults:IntArray) {
   super.onRequestPermissionsResult(requestCode,permissions,grantResults)
   if(requestCode==42) {
    if(grantResults.isNotEmpty()&&grantResults[0]==PackageManager.PERMISSION_GRANTED)startCamera()
