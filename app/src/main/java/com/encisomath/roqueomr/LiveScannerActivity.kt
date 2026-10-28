@@ -13,7 +13,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.SystemClock
-import android.util.Size
+import androidx.camera.core.AspectRatio
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -40,7 +40,7 @@ import kotlin.math.min
  * Live CameraX OMR capture.
  *
  * 1. CameraX analyzes a live RGBA image every ~450ms.
- * 2. OmrEngine identifies four square fiducials and locates all bubbles.
+ * 2. OmrEngine requires six ring-shaped fiducials, checks A4 ratios and header.
  * 3. Three geometrically stable detections trigger an automatic freeze.
  * 4. The frozen photo shows the actual marked options and guide positions.
  *
@@ -116,7 +116,7 @@ class LiveScannerActivity : ComponentActivity() {
    background=rect(Color.parseColor("#E5142436"))
   }
   header.addView(text("ROQUE OMR  /  CÁMARA",19f,true))
-  topStatus=text("Buscando las cuatro guías negras…",12.5f)
+  topStatus=text("Buscando seis guías cuadradas…",12.5f)
   topStatus.setTextColor(Color.parseColor("#C8E7E4"))
   header.addView(topStatus)
   frame.addView(header,FrameLayout.LayoutParams(-1,-2,Gravity.TOP).apply {
@@ -168,11 +168,11 @@ class LiveScannerActivity : ComponentActivity() {
    try {
     val cameraProvider=future.get()
     provider=cameraProvider
-    val previewCase=Preview.Builder().build().apply {
+    val previewCase=Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3).build().apply {
      setSurfaceProvider(preview.surfaceProvider)
     }
     val analysis=ImageAnalysis.Builder()
-     .setTargetResolution(Size(1280,960))
+     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
      .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
      .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
      .build()
@@ -215,7 +215,7 @@ class LiveScannerActivity : ComponentActivity() {
      topStatus.text=if(level<requiredStableFrames)
       "Guías detectadas · estabilizando $level/$requiredStableFrames"
       else "Hoja alineada"
-     status.text="No muevas el teléfono. Captura automática activada."
+     status.text="Hoja A4 validada. Mantén firme el teléfono."
     }
     if(stable>=requiredStableFrames) {
      frozen=true
@@ -227,7 +227,7 @@ class LiveScannerActivity : ComponentActivity() {
      if(!frozen) {
       overlay.setLive(null)
       topStatus.text="Buscando las cuatro guías negras…"
-      status.text="Coloca la hoja completa, con buena luz y sin recortes."
+      status.text="Usa una hoja nueva v1.2: deben verse las seis guías."
      }
     }
    }
