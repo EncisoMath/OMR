@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
  <uses-feature android:name="android.hardware.camera" android:required="false" />
+ <uses-permission android:name="android.permission.CAMERA" />
  <application android:label="Roque OMR" android:theme="@style/AppTheme" android:allowBackup="false"
               android:supportsRtl="true" android:usesCleartextTraffic="false">
+  <activity android:name=".LiveScannerActivity" android:exported="false" android:screenOrientation="portrait" />
   <activity android:name=".MainActivity" android:exported="true">
    <intent-filter>
     <action android:name="android.intent.action.MAIN" />

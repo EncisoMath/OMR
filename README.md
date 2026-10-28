@@ -1,15 +1,33 @@
-# Roque OMR — Android
+# Roque OMR v1.1.0 — Android
 
-Aplicación experimental de hojas de respuesta OMR para Android 8 o superior.
+Lector experimental offline de hojas de respuesta OMR para Android 8 o superior.
 
-- Generar hojas A4 de 1 a 100 preguntas, con opciones AB, ABC o ABCD.
-- Captura con cámara o carga de fotografía, lectura de marcas y calificación.
-- Corrección manual de preguntas ambiguas y guardado local de resultados.
-- Hoja de prueba preconfigurada de 40 preguntas, clave ABCD repetida.
-- Sin conexión obligatoria, sin cuentas y sin servidor.
+## Flujo de cámara integrada
 
-## Construcción
-GitHub Actions > Android APK > ejecutar flujo; descargar artefacto RoqueOMR-debug-apk. En local: JDK 17, Android SDK 35, Gradle 8.9; ejecutar gradle assembleDebug.
+1. Abrir **LEER** y escribir el código del estudiante.
+2. Tocar **Escanear automáticamente** (conceder permiso de cámara).
+3. La vista CameraX detecta automáticamente las cuatro guías negras de la hoja.
+4. Tras tres lecturas geométricamente estables, la imagen se congela sola.
+5. La app superpone guías verdes y círculos sobre las respuestas identificadas; las dudosas se indican en ámbar.
+6. Tocar **Repetir** para otra captura o **Usar lectura** para revisar y calificar. Ninguna lectura se guarda sin confirmación.
 
-## Alcance
-La v1 lee exclusivamente hojas creadas por Roque OMR. Requiere cuatro marcas de referencia visibles y escribir manualmente el ID al escanear. El reconocimiento usa geometría y análisis de píxeles, no IA entrenada. Verificar resultados antes de utilizarlos oficialmente.
+La vista en vivo usa CameraX ImageAnalysis con descarte de fotogramas atrasados. El reconocimiento sigue utilizando algoritmos OMR y homografía (NO una inteligencia artificial entrenada). La captura proviene del fotograma analizado y puede tener menor resolución que una foto completa.
+
+## Otras funciones
+- Crear pruebas de 1 a 100 ítems, 2–4 opciones; configurar claves y generar hoja A4 en PDF.
+- Importar imagen/PDF cuando no se utiliza la cámara.
+- Revisar/corregir respuestas y guardar resultados localmente.
+- Exportar CSV. Prueba demo de 40 preguntas con clave ABCD repetida.
+- Todo offline, sin cuentas ni servidor.
+
+## Descargar
+[GitHub Releases](https://github.com/EncisoMath/OMR/releases) incluye APK debug y dos hojas PDF de muestra.
+
+## Compilación
+GitHub Actions > Android APK; compilar localmente con JDK17, Android SDK35 y Gradle8.9 ejecutando `gradle assembleDebug`.
+
+## Límites importantes
+- Reconoce exclusivamente hojas generadas por Roque OMR, no hojas de terceros.
+- Las cuatro marcas de referencia deben estar completas y legibles.
+- El ID se introduce manualmente y el análisis de cámara puede variar con iluminación, distorsión o dispositivo.
+- **Versión beta no verificada en dispositivos físicos**. Antes de utilizarla para notas oficiales, realizar pruebas con hojas impresas y comparar manualmente todas las lecturas.

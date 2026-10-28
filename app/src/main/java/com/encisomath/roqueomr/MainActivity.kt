@@ -199,7 +199,7 @@ class MainActivity:Activity() {
   startActivityForResult(intent,10)
  }
  private fun scanScreen() {
-  heading("Leer respuestas","Captura con cámara o importa fotografías y PDF.")
+  heading("Leer respuestas","Escanea automáticamente con la cámara integrada.")
   val card=card()
   card.addView(label("PRUEBA SELECCIONADA",11f,accent,true))
   card.addView(label(current().title,18f,white,true));card.addView(gap(12))
@@ -208,18 +208,36 @@ class MainActivity:Activity() {
   card.addView(studentField);body.addView(card)
   val actions=card()
   actions.addView(label("CAPTURAR HOJA",14f,white,true))
-  addButton(actions,"Abrir cámara"){rememberId();camera()}
+  addButton(actions,"Escanear automáticamente"){rememberId();liveScanner()}
   addButton(actions,"Importar imagen o PDF",false){rememberId();importFile()}
   body.addView(actions)
   val tips=card()
   tips.addView(label("ANTES DE LEER",11f,accent,true))
   tips.addView(gap())
-  tips.addView(label("Fotografía toda la hoja, incluidos los cuatro cuadrados. Procura buena luz, sin sombras y con la hoja plana. Comprueba las marcas dudosas.",13f,muted))
+  tips.addView(label("La cámara detecta las cuatro guías, espera estabilidad y se autocaptura. Después verás sobre la foto las respuestas reconocidas. Revisa las marcas dudosas antes de guardar.",13f,muted))
   body.addView(tips)
  }
  private fun rememberId() {
   studentId=studentField?.text?.toString()?.trim() ?: ""
   prefs.edit().putString("student",studentId).apply()
+ }
+ private fun liveScanner() {
+  val intent=Intent(this,LiveScannerActivity::class.java)
+  intent.putExtra("exam",current().toJson().toString())
+  startActivityForResult(intent,14)
+ }
+ private fun acceptLiveScan(data:Intent?) {
+  val exam=current()
+  if(data?.getStringExtra("examId")!=exam.id) {
+   toast("La hoja corresponde a otra prueba.");return
+  }
+  val marks=data.getStringExtra("answers") ?: return
+  if(marks.length!=exam.count) { toast("Lectura incompleta");return }
+  val uncertain=data.getIntArrayExtra("uncertain")?.toMutableSet() ?: mutableSetOf()
+  lastScan=ScanResult(marks.toMutableList(),uncertain,emptyList(),4)
+  scannedExam=exam
+  section=2
+  render()
  }
  private fun camera() {
   try {
@@ -244,6 +262,7 @@ class MainActivity:Activity() {
   super.onActivityResult(requestCode,resultCode,data)
   if(resultCode!=RESULT_OK)return
   when(requestCode) {
+   14 -> acceptLiveScan(data)
    10 -> {
     val uri=data?.data ?: return
     try {

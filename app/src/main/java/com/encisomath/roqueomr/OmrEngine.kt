@@ -16,8 +16,18 @@ object OmrEngine {
  private data class Marker(val x:Double,val y:Double,val area:Int,val width:Int,val height:Int)
  private data class Point(val x:Double,val y:Double)
  class ScanException(message:String):Exception(message)
+ data class Pixel(val x:Double,val y:Double)
+ data class DetailedScan(
+  val result:ScanResult,
+  val corners:List<Pixel>,
+  val bubbleCenters:List<List<Pixel>>,
+  val imageWidth:Int,
+  val imageHeight:Int
+ )
 
- fun scan(input:Bitmap, exam:Exam):ScanResult {
+ fun scan(input:Bitmap, exam:Exam):ScanResult = scanDetailed(input,exam).result
+
+ fun scanDetailed(input:Bitmap, exam:Exam):DetailedScan {
   val maxDimension=1800.0
   val ratio=min(1.0,maxDimension/max(input.width,input.height))
   val bitmap=if(ratio<1.0) Bitmap.createScaledBitmap(
@@ -32,7 +42,13 @@ object OmrEngine {
   val answers=mutableListOf<Char>()
   val uncertain=mutableSetOf<Int>()
   val allScores=mutableListOf<List<Double>>()
+  val bubbleCenters=mutableListOf<List<Pixel>>()
   for(q in 0 until exam.count) {
+   bubbleCenters.add((0 until exam.choices).map { option ->
+    val (bx,by)=SheetPdf.bubble(exam.count,q,option)
+    val point=map(m,bx,by)
+    Pixel(point.x,point.y)
+   })
    val scores=(0 until exam.choices).map { o ->
     val (x,y)=SheetPdf.bubble(exam.count,q,o)
     measure(pixels,w,h,m,x,y)
@@ -50,7 +66,11 @@ object OmrEngine {
    if(answer=='?')uncertain.add(q)
    answers.add(answer)
   }
-  return ScanResult(answers,uncertain,allScores,marks.size)
+  return DetailedScan(
+   ScanResult(answers,uncertain,allScores,marks.size),
+   marks.map { Pixel(it.x,it.y) },
+   bubbleCenters,w,h
+  )
  }
 
  private fun measure(pix:IntArray,w:Int,h:Int,m:DoubleArray,x:Double,y:Double):Double {
