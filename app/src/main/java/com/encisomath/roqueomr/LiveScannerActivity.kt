@@ -150,13 +150,13 @@ class LiveScannerActivity : ComponentActivity() {
   if(requestCode==42) {
    if(grantResults.isNotEmpty()&&grantResults[0]==PackageManager.PERMISSION_GRANTED)startCamera()
    else {
-    androidx.appcompatAlert()
+    showPermissionExplanation()
    }
   }
  }
 
  // Permission rejection leaves the user a clear explanation rather than a black camera view.
- private fun androidx.appcompatAlert() {
+ private fun showPermissionExplanation() {
   android.app.AlertDialog.Builder(this).setTitle("Permiso de cámara")
    .setMessage("Roque OMR necesita acceso a la cámara para detectar la hoja automáticamente.")
    .setPositiveButton("Cerrar") { _,_ -> finish() }.setCancelable(false).show()
