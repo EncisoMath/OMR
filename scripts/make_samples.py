@@ -6,7 +6,7 @@ from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.colors import HexColor
 
 W, H = 595, 842
-MARKERS = [(35, 35), (560, 35), (35, 807), (560, 807)]
+MARKERS = [(35, 35), (560, 35), (35, 807), (560, 807), (35, 421), (560, 421)]
 
 def create(path, completed):
     c = Canvas(str(path), pagesize=(W, H))
@@ -22,7 +22,8 @@ def create(path, completed):
         c.setFont("Helvetica-Bold" if bold else "Helvetica",size)
         c.drawString(x,H-y,v)
     for x,y in MARKERS:
-        box(x-9,y-9,18,18,"#000000")
+        box(x-12,y-12,24,24,"#000000")
+        box(x-4.5,y-4.5,9,9,"#FFFFFF")
     box(55,43,485,34,"#152332")
     t(66,66,"ROQUE OMR",18,True,"#FFFFFF")
     t(405,65,"HOJA DE RESPUESTAS",8,True,"#BFF9EA")
@@ -33,7 +34,7 @@ def create(path, completed):
     t(399,126,"ID",8,True,"#455567")
     line(417,129,538,129)
     t(55,155,"Rellena completamente un solo circulo por pregunta. Usa lapiz o tinta oscura.",9)
-    t(55,169,"No dobles la hoja ni marques los cuatro cuadrados negros de referencia.",9)
+    t(55,169,"No marques las seis guias cuadradas de calibracion.",9)
     line(55,180,540,180,"#152332")
     for col in range(2):
         left=44+col*253
@@ -55,7 +56,7 @@ def create(path, completed):
                 c.setFillColor(HexColor("#152332"))
                 c.circle(x,H-y,4.4,stroke=0,fill=1)
     line(55,778,540,778)
-    t(55,795,"ROQUE OMR / FORMATO A4 / v1.0",7.2,True,"#64748B")
+    t(55,795,"ROQUE OMR / FORMATO A4 / v1.2",7.2,True,"#64748B")
     t(55,820,"Conserva los margenes completos para una lectura correcta.",7.2,False,"#64748B")
     c.showPage()
     c.save()
