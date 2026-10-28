@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -33,3 +33,29 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
           if-no-files-found: error
+      - name: Preparar PDFs A4
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generar hojas de muestra
+        run: |
+          python -m pip install reportlab
+          python scripts/make_samples.py --out-dir dist
+      - name: Publicar APK y PDF en GitHub Releases
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v1.0.0 ya publicada."
+          else
+            gh release create v1.0.0 \
+              "app/build/outputs/apk/debug/app-debug.apk#RoqueOMR_v1.0.0_debug.apk" \
+              dist/RoqueOMR_Hoja_Muestra_40_Blanco.pdf \
+              dist/RoqueOMR_Hoja_Muestra_40_Resuelta.pdf \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Roque OMR v1.0.0 - Beta" \
+              --notes "Primera versión experimental. Android APK de prueba y dos hojas A4 (en blanco y con 40 respuestas). Reconocimiento OMR offline, sin IA entrenada. Verifica las lecturas antes de usar para calificaciones oficiales." \
+              --prerelease \
+              --target "$GITHUB_SHA"
+          fi
