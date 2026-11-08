@@ -1,35 +1,51 @@
-# Roque OMR v1.2.0 — Android
+# EncisoOMR
 
-Lector experimental offline de hojas de respuesta OMR para Android 8 o superior.
+Aplicación Android y plataforma web de lectura óptica de respuestas (OMR), con código propio y sincronización mediante **Supabase**. Objetivo: cubrir de forma gratuita las funciones principales de un sistema de evaluación OMR completo, sin suscripciones ni anuncios obligatorios.
 
-## Flujo de cámara integrada
+> Estado: **inicio de migración**. El código Android existente en `main` todavía es Roque OMR v1.2.0, un prototipo local. **No está conectado aún a Supabase**. No se debe considerar lista la nueva aplicación ni un escáner verificado para notas oficiales.
 
-1. Abrir **LEER** y escribir el código del estudiante.
-2. Tocar **Escanear automáticamente** (conceder permiso de cámara).
-3. La vista CameraX detecta automáticamente las seis guías negras de la hoja.
-4. Tras tres lecturas geométricamente estables, la imagen se congela sola.
-5. La app superpone guías verdes y círculos sobre las respuestas identificadas; las dudosas se indican en ámbar.
-6. Tocar **Repetir** para otra captura o **Usar lectura** para revisar y calificar. Ninguna lectura se guarda sin confirmación.
+## Proyectos de trabajo
 
-**IMPORTANTE:** Imprime las nuevas hojas PDF v1.2 que vienen adjuntas a la Release. Las hojas v1.0/v1.1 con cuadrados sólidos **no son compatibles** con el detector de la v1.2. Las seis guías nuevas son cuadrados negros de centro blanco (cuatro esquinas y dos laterales). La validación exige forma de guía, proporciones A4, posición de laterales y cabecera oscura antes de permitir autocaptura.
+- Repositorio: `EncisoMath/OMR`
+- Supabase exclusivamente: **EncisoOMR**, ref `lsbwuwpvesdkwrwffjkc`
+- URL del proyecto: `https://lsbwuwpvesdkwrwffjkc.supabase.co`
+- Respaldo del prototipo Android anterior: rama `archive/roque-omr-v1.2.0`
 
-La vista en vivo usa CameraX ImageAnalysis con descarte de fotogramas atrasados. El reconocimiento sigue utilizando algoritmos OMR y homografía (NO una inteligencia artificial entrenada). La captura proviene del fotograma analizado y puede tener menor resolución que una foto completa.
+## Estado implementado
 
-## Otras funciones
-- Crear pruebas de 1 a 100 ítems, 2–4 opciones; configurar claves y generar hoja A4 en PDF.
-- Importar imagen/PDF cuando no se utiliza la cámara.
-- Revisar/corregir respuestas y guardar resultados localmente.
-- Exportar CSV. Prueba demo de 40 preguntas con clave ABCD repetida.
-- Todo offline, sin cuentas ni servidor.
+- [x] Proyecto de Supabase separado y acceso confirmado
+- [x] Base de datos inicial: espacios personales, exámenes, estudiantes, clave de respuestas, escaneos y eventos de sincronización
+- [x] RLS habilitado en las tablas iniciales; acceso de propietario por cuenta
+- [x] Bucket privado `omr-scans` con tipo MIME `image/webp`, máximo de 3 MiB por imagen, rutas que comienzan por UID
+- [x] Migración reproducible en `supabase/sql/initial_schema.sql`
+- [ ] Autenticación Android y web
+- [ ] Lectura/escritura a través de Supabase desde Android
+- [ ] Captura original, escaneo OMR, compresión WebP posterior, cola offline y sincronización
+- [ ] Editor completo de exámenes y plantillas de respuesta
+- [ ] Importación, exportación, análisis, reportes y colaboración docente
+- [ ] Interfaz web completa
+- [ ] Compilación y prueba del nuevo APK
 
-## Descargar
-[GitHub Releases](https://github.com/EncisoMath/OMR/releases) incluye APK debug y dos hojas PDF de muestra.
+## Arquitectura
 
-## Compilación
-GitHub Actions > Android APK; compilar localmente con JDK17, Android SDK35 y Gradle8.9 ejecutando `gradle assembleDebug`.
+`Android (Kotlin, CameraX, OMR local, cola offline)` + `Web` → `Supabase Auth + PostgreSQL con RLS + Storage privado`.
 
-## Límites importantes
-- Reconoce exclusivamente hojas generadas por Roque OMR, no hojas de terceros.
-- Las seis marcas de referencia deben estar completas y legibles.
-- El ID se introduce manualmente y el análisis de cámara puede variar con iluminación, distorsión o dispositivo.
-- **Versión beta no verificada en dispositivos físicos**. Antes de utilizarla para notas oficiales, realizar pruebas con hojas impresas y comparar manualmente todas las lecturas.
+Se conservará la máxima precisión posible: el algoritmo de detección trabaja con la imagen original, **antes** de la compresión a WebP. Un escaneo se considera válido solo después de revisar marcas dudosas. Las imágenes y los resultados se sincronizarán por separado para evitar pérdidas de datos.
+
+Los usuarios tendrán todas las capacidades implementadas disponibles sin suscripción. El backend **no** tiene cuota ilimitada: los límites y costos de infraestructura siguen aplicando.
+
+## Seguridad y privacidad
+
+- No publicar contraseñas, claves secretas ni claves `service_role` en GitHub o en las aplicaciones.
+- Las tablas usan RLS y el bucket `omr-scans` es privado.
+- Los nombres de estudiantes, imágenes de hojas y resultados son datos sensibles; no deben cargarse en repositorios públicos.
+- Antes de permitir organizaciones y docentes colaboradores debe añadirse un sistema de membresías y políticas de autorización verificadas.
+- Para cumplir con las normas de privacidad aplicables a menores, definir retención y eliminación de fotografías, y controles de acceso.
+
+## Prototipo anterior
+
+El código fuente original del lector Android sigue disponible en `archive/roque-omr-v1.2.0`. Detectaba hojas propias con seis marcas y generaba PDF; está sin validar en distintos teléfonos. Se evaluará qué algoritmos aprovechar con implementación propia.
+
+## Licencias y referencia de producto
+
+La aplicación se desarrollará con código original. La referencia de experiencia puede ser EvalBee 5.8.4, pero no se incorporan código, marcas ni recursos visuales protegidos de terceros.
