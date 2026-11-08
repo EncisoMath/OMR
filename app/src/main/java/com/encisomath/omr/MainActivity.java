@@ -4,6 +4,7 @@ import android.content.*;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
+import android.print.PrintManager;
 import android.util.Base64;
 import android.webkit.*;
 import org.json.*;
