@@ -1,4 +1,4 @@
-# EncisoOMR — Android + Web · v0.1.1 (beta)
+# EncisoOMR — Android + Web · v0.1.2 (beta)
 
 **Proyecto nuevo.** El código antiguo de Roque OMR fue eliminado de `main` y reemplazado por una aplicación original que utiliza exclusivamente **Supabase EncisoOMR** (`lsbwuwpvesdkwrwffjkc`). No utiliza código fuente de EvalBee ni recursos propietarios.
 
@@ -11,7 +11,8 @@
 - Claves de respuestas editables y preguntas anuladas.
 - Registro de estudiantes y códigos.
 - Generación de hojas A4 e impresión a PDF con 4 marcadores negros.
-- Cámara Android e importación de fotografías.
+- Escáner integrado dentro de la aplicación (CameraX), con video en vivo, cuatro referencias, detección automática y captura por estabilidad; permite repetir o aceptar la fotografía.
+- Importación de fotografías como opción independiente.
 - Escáner OMR experimental para **las hojas EncisoOMR**; corrección manual.
 - Calificación a partir de las claves; almacenamiento de respuestas y resultados.
 - Fotografías comprimidas en **WebP** dentro del bucket privado `omr-scans`.
@@ -25,7 +26,7 @@ Las evaluaciones se guardan localmente, incluso sin conexión. Las fotografías 
 
 ## Descargar APK
 
-La automatización `Build EncisoOMR APK` compila el APK de prueba (Android 10+). Tras una compilación exitosa, publica `EncisoOMR-v0.1.1-debug.apk` en **GitHub Releases**. La versión debug no es una firma de distribución.
+La automatización `Build EncisoOMR APK` compila el APK de prueba (Android 10+). Tras una compilación exitosa, publica `EncisoOMR-v0.1.2-debug.apk` en **GitHub Releases**. La versión debug no es una firma de distribución.
 
 ## Compilar
 

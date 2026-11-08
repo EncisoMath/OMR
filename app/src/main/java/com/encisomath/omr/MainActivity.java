@@ -33,7 +33,8 @@ public class MainActivity extends Activity {
       try {
         JSONObject j=new JSONObject(json);String op=j.optString("op"),id=j.optString("id");
         if(op.equals("http"))executor.execute(()->http(j,id));
-        else if(op.equals("camera")||op.equals("gallery"))ui.post(()->photo(id,op.equals("camera")));
+        else if(op.equals("camera"))ui.post(()->{photoRequest=id;startActivityForResult(new Intent(MainActivity.this,ScannerActivity.class),102);});
+        else if(op.equals("gallery"))ui.post(()->photo(id,false));
         else if(op.equals("print"))ui.post(()->print(id,j.optString("html")));
         else result(id,false,"","Acción desconocida");
       }catch(Exception e){result("",false,"",e.toString());}
@@ -84,35 +85,37 @@ public class MainActivity extends Activity {
   void photo(String id,boolean camera){
     photoRequest=id;
     try{
-      Intent i;
-      if(camera){
-        ContentValues cv=new ContentValues();cv.put(MediaStore.Images.Media.DISPLAY_NAME,"EncisoOMR_"+System.currentTimeMillis()+".jpg");
-        cv.put(MediaStore.Images.Media.MIME_TYPE,"image/jpeg");
-        cv.put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/EncisoOMR");
-        photoUri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,cv);
-        if(photoUri==null)throw new Exception("No se pudo crear foto");
-        i=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        i.putExtra(MediaStore.EXTRA_OUTPUT,photoUri);
-        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        startActivityForResult(i,100);
-      }else{
-        i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.setType("image/*");
-        i.addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,101);
-      }
+      Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+      pick.setType("image/*");pick.addCategory(Intent.CATEGORY_OPENABLE);
+      startActivityForResult(pick,101);
     }catch(Exception e){result(id,false,"",e.toString());}
   }
   @Override protected void onActivityResult(int req,int status,Intent data){
     super.onActivityResult(req,status,data);
-    if(req!=100&&req!=101)return;
-    if(status!=RESULT_OK){result(photoRequest,false,"","Captura cancelada");return;}
-    Uri uri=req==100?photoUri:(data==null?null:data.getData());
-    if(uri==null){result(photoRequest,false,"","Imagen inválida");return;}
-    String id=photoRequest;
+    if(req!=101&&req!=102)return;
+    final String id=photoRequest;
+    if(status!=RESULT_OK){result(id,false,"","Escaneo cancelado");return;}
+    final boolean internal=req==102;
+    final String filePath=internal&&data!=null?data.getStringExtra("scan_file"):null;
+    final Uri uri=!internal&&data!=null?data.getData():null;
+    if(internal&&filePath==null||!internal&&uri==null){
+      result(id,false,"","No se recibió la fotografía");return;
+    }
     executor.execute(()->{
       try{
-        byte[] bytes=read(getContentResolver().openInputStream(uri),22_000_000);
-        String mime=getContentResolver().getType(uri);if(mime==null||!mime.startsWith("image/"))mime="image/jpeg";
-        result(id,true,"data:"+mime+";base64,"+Base64.encodeToString(bytes,Base64.NO_WRAP),"");
+        byte[] bytes;
+        if(internal){
+          File photo=new File(filePath);
+          String allowed=getCacheDir().getCanonicalPath()+File.separator;
+          if(!photo.getCanonicalPath().startsWith(allowed))throw new Exception("Ruta no válida");
+          try(InputStream in=new FileInputStream(photo)){bytes=read(in,11_000_000);}
+          photo.delete();
+        }else{
+          try(InputStream in=getContentResolver().openInputStream(uri)){bytes=read(in,15_000_000);}
+        }
+        String type=internal?"image/jpeg":getContentResolver().getType(uri);
+        if(type==null||!type.startsWith("image/"))type="image/jpeg";
+        result(id,true,"data:"+type+";base64,"+Base64.encodeToString(bytes,Base64.NO_WRAP),"");
       }catch(Exception e){result(id,false,"",e.toString());}
     });
   }
