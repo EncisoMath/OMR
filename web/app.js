@@ -2,7 +2,7 @@
 const API_URL="https://lsbwuwpvesdkwrwffjkc.supabase.co";
 const PUB_KEY="sb_publishable_PYVfhbzVGaFlOqsl2sSQGA_FskOK_eB";
 const ON_ANDROID=!!window.Native;
-const state={session:null,workspace:null,exams:[],students:[],keys:[],scans:[],tab:"exams",examId:"",studentId:"",photo:"",compressed:"",answers:{},uncertain:[],scanNote:"",register:false,busy:false};
+const state={session:null,workspace:null,exams:[],students:[],keys:[],scans:[],tab:"exams",examId:"",studentId:"",photo:"",compressed:"",answers:{},uncertain:[],scanNote:"",register:false,busy:false,cloudStatus:'local',cloudError:'',syncing:false,resyncRequested:false};
 const root=document.getElementById("root"),queued={};
 let seq=0,toastTimer=0;
 function safe(x){return String(x==null?"":x).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -44,43 +44,74 @@ async function api(method,path,data,binary){
 function saveCache(){localStorage.setItem("enciso_cache",JSON.stringify({workspace:state.workspace,exams:state.exams,students:state.students,keys:state.keys,scans:state.scans}));}
 function restoreCache(){try{const cache=JSON.parse(localStorage.getItem("enciso_cache")||"{}");for(const x of ["workspace","exams","students","keys","scans"])if(cache[x])state[x]=cache[x];}catch(e){}}
 function busy(b){state.busy=b;document.querySelectorAll("button.primary").forEach(el=>el.disabled=b);}
+
 async function boot(){
- try{state.session=JSON.parse(localStorage.getItem("enciso_session")||"null");}catch(e){}
- restoreCache();render();
- if(state.session)try{await load();}catch(e){notice("Sin conexión: datos en caché. "+e.message);render();}
+  restoreCache();
+  if(!state.workspace)state.workspace={id:uuid(),name:"Mi espacio OMR",created_at:new Date().toISOString()};
+  try{state.session=JSON.parse(localStorage.getItem("enciso_session")||"null");}catch(e){state.session=null;}
+  saveCache();render();
+  window.addEventListener("online",scheduleSync);
+  setTimeout(function(){syncNow();},100);
 }
-async function signIn(ev){
- ev.preventDefault();const email=document.getElementById("loginEmail").value.trim(),password=document.getElementById("loginPassword").value;
- busy(true);
- try{
-  const path=state.register?"/auth/v1/signup":"/auth/v1/token?grant_type=password";
-  const response=await request("POST",path,{email,password},null,"");
-  if(response&&response.access_token){
-   state.session=response;localStorage.setItem("enciso_session",JSON.stringify(response));
-   state.workspace=null;state.exams=[];state.students=[];state.keys=[];state.scans=[];
-   await load();
-  }else notice("Cuenta creada. Confirma tu correo si Supabase lo solicita.");
- }catch(e){notice("Acceso: "+e.message)}finally{busy(false);render();}
+async function refresh(){saveCache();render();}
+let syncTimer=null;
+function scheduleSync(){clearTimeout(syncTimer);syncTimer=setTimeout(function(){syncNow();},700);}
+async function syncNow(){
+  if(state.syncing){state.resyncRequested=true;return;}
+  if(typeof navigator!=="undefined"&&navigator.onLine===false){state.cloudStatus="local";render();return;}
+  state.syncing=true;state.cloudStatus="syncing";
+  try{
+    if(!state.session||!state.session.access_token){
+      // No user interface for sign-in. Supabase authenticates this installation anonymously.
+      const anon=await request("POST","/auth/v1/signup",{data:{product:"EncisoOMR"}},null,"");
+      if(!anon||!anon.access_token||!anon.refresh_token)throw Error("anonymous_session_unavailable");
+      state.session=anon;localStorage.setItem("enciso_session",JSON.stringify(anon));
+    }
+    await cloudSync();state.cloudStatus="synced";state.cloudError="";
+  }catch(error){
+    // Cloud configuration or HTTP errors cannot block the app.
+    state.cloudStatus="local";state.cloudError=String(error&&error.message||error);
+  }finally{
+    state.syncing=false;saveCache();render();
+    if(state.resyncRequested){state.resyncRequested=false;scheduleSync();}
+  }
 }
-function signOut(){state.session=null;state.workspace=null;state.exams=[];state.students=[];state.keys=[];state.scans=[];localStorage.removeItem("enciso_session");localStorage.removeItem("enciso_cache");render();}
-async function load(){
- const myId=owner();if(!myId)throw Error("Sesión inválida");
- let arr=await api("GET","/rest/v1/omr_workspaces?select=*&order=created_at.asc&limit=1");
- if(!arr.length)arr=await api("POST","/rest/v1/omr_workspaces",{owner_id:myId,name:"Mi espacio OMR"});
- state.workspace=arr[0];await refresh();
+async function cloudSync(){
+  const account=owner();if(!account)throw Error("Supabase identity unavailable");
+  const remote=await api("GET","/rest/v1/omr_workspaces?select=*&order=created_at.asc&limit=20");
+  if(remote.length&&!state.exams.length&&!state.students.length&&!state.keys.length&&!state.scans.length){
+    state.workspace=remote[0];
+    const filter="workspace_id=eq."+encodeURIComponent(state.workspace.id)+"&select=*";
+    const data=await Promise.all([
+      api("GET","/rest/v1/omr_exams?"+filter+"&order=created_at.desc"),
+      api("GET","/rest/v1/omr_students?"+filter+"&order=full_name.asc"),
+      api("GET","/rest/v1/omr_answer_keys?"+filter+"&order=item_number.asc"),
+      api("GET","/rest/v1/omr_scans?"+filter+"&order=scanned_at.desc")
+    ]);
+    [state.exams,state.students,state.keys,state.scans]=data;
+    saveCache();return;
+  }
+  if(!remote.some(w=>w.id===state.workspace.id))
+    await api("POST","/rest/v1/omr_workspaces?on_conflict=id",
+       {id:state.workspace.id,owner_id:account,name:state.workspace.name||"Mi espacio OMR"});
+  const workId=state.workspace.id,base=x=>Object.assign({},x,{owner_id:account,workspace_id:workId});
+  if(state.exams.length)await api("POST","/rest/v1/omr_exams?on_conflict=id",state.exams.map(base));
+  if(state.students.length)await api("POST","/rest/v1/omr_students?on_conflict=id",state.students.map(base));
+  if(state.keys.length)await api("POST","/rest/v1/omr_answer_keys?on_conflict=exam_id,item_number",state.keys.map(base));
+  for(const scan of state.scans){
+    if(!scan.image_path){
+      const photo=await EncisoStore.loadImage(scan.id);
+      if(photo&&photo.startsWith("data:image/webp;base64,")){
+        const path=account+"/"+scan.exam_id+"/"+scan.id+".webp";
+        try{await api("POST","/storage/v1/object/omr-scans/"+path,null,photo.split(",")[1]);}
+        catch(e){if(!/409|already exists|Duplicate/i.test(String(e.message)))throw e;}
+        scan.image_path=path;
+      }
+    }
+    await api("POST","/rest/v1/omr_scans?on_conflict=id",base(scan));
+  }
 }
-async function refresh(){
- if(!state.workspace)return;
- let id=encodeURIComponent(state.workspace.id);
- const res=await Promise.all([
-  api("GET","/rest/v1/omr_exams?workspace_id=eq."+id+"&select=*&order=created_at.desc"),
-  api("GET","/rest/v1/omr_students?workspace_id=eq."+id+"&select=*&order=full_name.asc"),
-  api("GET","/rest/v1/omr_answer_keys?workspace_id=eq."+id+"&select=*&order=item_number.asc"),
-  api("GET","/rest/v1/omr_scans?workspace_id=eq."+id+"&select=*&order=scanned_at.desc")
- ]);
- [state.exams,state.students,state.keys,state.scans]=res;
- saveCache();render();
-}
+
 function count(exam){return Math.max(1,Math.min(100,Number(exam.settings&&exam.settings.count||40)));}
 function choices(exam){return Math.max(2,Math.min(5,Number(exam.settings&&exam.settings.choices||4)));}
 function examById(id){return state.exams.find(e=>e.id===id);}
@@ -90,18 +121,18 @@ function studentName(id){return studentById(id)?studentById(id).full_name:"Sin a
 function choose(tab){state.tab=tab;render();}
 function tile(num,label){return '<div class="metric"><strong>'+num+'</strong><span>'+safe(label)+'</span></div>';}
 function frame(title,body){
- root.innerHTML='<header class="top"><div class="top-inner"><div><h1>EncisoOMR</h1><small>Lectura óptica de respuestas · Gratis</small></div><small>Supabase · ENCISOOMR</small></div></header>'+
+ root.innerHTML='<header class="top"><div class="top-inner"><div><h1>EncisoOMR</h1><small>Lectura óptica de respuestas · Gratis</small></div><small>Guardado local · EncisoOMR</small></div></header>'+
  '<nav class="nav">'+[["exams","▤","Exámenes"],["scan","◎","Escanear"],["students","♙","Estudiantes"],["reports","▥","Resultados"],["settings","⚙","Cuenta"]].map(t=>'<button class="'+(state.tab===t[0]?"active":"")+'" onclick="choose(\''+t[0]+'\')"><span class="ico">'+t[1]+'</span>'+t[2]+'</button>').join("")+'</nav>'+
- '<main class="wrap"><div class="toolbar"><h2>'+safe(title)+'</h2><span class="pill">BETA 0.1.0</span></div>'+body+'</main>';
+ '<main class="wrap"><div class="toolbar"><h2>'+safe(title)+'</h2><span class="pill">BETA 0.1.1</span></div>'+body+'</main>';
 }
+
 function render(){
- if(!state.session){
- root.innerHTML='<div class="wrap login"><div class="center"><h1>EncisoOMR</h1><p class="muted">Exámenes y lectura de respuestas</p></div><section class="box"><h3>'+(state.register?"Crear cuenta gratuita":"Iniciar sesión")+'</h3><form onsubmit="signIn(event)"><label>Correo electrónico</label><input id="loginEmail" type="email" autocomplete="email" required><label>Contraseña</label><input id="loginPassword" type="password" minlength="6" required><div style="height:16px"></div><button class="primary" style="width:100%">Continuar</button></form><div class="center" style="margin-top:13px"><button class="inline" onclick="state.register=!state.register;render()">'+(state.register?"Ya tengo cuenta":"Registrarme sin pagar")+'</button></div></section><p class="muted small center">Exámenes, imágenes y resultados privados en Supabase.</p></div>';return;
- }
- if(!state.workspace){frame("Conexión",'<section class="box"><p>Preparando tu espacio de trabajo…</p><button onclick="load()">Reintentar</button></section>');return;}
- const content={exams:examPanel,scan:scanPanel,students:studentPanel,reports:reportPanel,settings:settingsPanel}[state.tab]();
- frame(({exams:"Mis exámenes",scan:"Escanear hoja",students:"Estudiantes",reports:"Resultados",settings:"Mi cuenta"})[state.tab],content);
+  if(!state.workspace)state.workspace={id:uuid(),name:"Mi espacio OMR"};
+  const pages={exams:examPanel,scan:scanPanel,students:studentPanel,reports:reportPanel,settings:settingsPanel};
+  const content=(pages[state.tab]||examPanel)();
+  frame(({exams:"Mis exámenes",scan:"Escanear hoja",students:"Estudiantes",reports:"Resultados",settings:"Configuración"})[state.tab]||"Mis exámenes",content);
 }
+
 function examPanel(){
  let html='<div class="grid3">'+tile(state.exams.length,"Exámenes")+tile(state.students.length,"Estudiantes")+tile(state.scans.length,"Escaneos")+'</div>'+
  '<section class="box"><h3>Crear examen</h3><form onsubmit="createExam(event)"><label>Nombre</label><input id="examTitle" required maxlength="200" placeholder="Ej. Matemáticas · Grado 9"><div class="grid2"><div><label>Preguntas (1–100)</label><input type="number" id="examCount" min="1" max="100" value="40"></div><div><label>Opciones</label><select id="examOptions"><option>2</option><option>3</option><option selected>4</option><option>5</option></select></div></div><div style="height:13px"></div><button class="primary">Crear examen</button></form></section>'+
@@ -109,14 +140,18 @@ function examPanel(){
  if(state.examId&&examById(state.examId))html+=keyPanel(examById(state.examId));
  return html;
 }
+
 async function createExam(ev){
- ev.preventDefault();
- const title=document.getElementById("examTitle").value.trim();
- const n=Number(document.getElementById("examCount").value),opts=Number(document.getElementById("examOptions").value);
- if(!title||n<1||n>100||opts<2||opts>5)return notice("Verifica los datos");
- try{busy(true);const created=await api("POST","/rest/v1/omr_exams",{owner_id:owner(),workspace_id:state.workspace.id,title,status:"ready",settings:{count:n,choices:opts}});state.examId=created[0].id;await refresh();notice("Examen creado");}
- catch(e){notice("Error: "+e.message)}finally{busy(false);}
+  ev.preventDefault();
+  const title=document.getElementById("examTitle").value.trim();
+  const n=Number(document.getElementById("examCount").value),opts=Number(document.getElementById("examOptions").value);
+  if(!title||n<1||n>100||opts<2||opts>5)return notice("Verifica los datos");
+  const exam={id:uuid(),owner_id:state.workspace.id,workspace_id:state.workspace.id,
+    title,status:"ready",settings:{count:n,choices:opts},created_at:new Date().toISOString()};
+  state.exams.unshift(exam);state.examId=exam.id;
+  saveCache();render();notice("Examen guardado");scheduleSync();
 }
+
 function openExam(id){state.examId=state.examId===id?"":id;render();if(state.examId)setTimeout(()=>document.getElementById("keyPanel").scrollIntoView({behavior:"smooth"}),25);}
 function keyPanel(e){
  const arr=state.keys.filter(k=>k.exam_id===e.id),keys=Object.fromEntries(arr.map(k=>[k.item_number,k]));
@@ -128,26 +163,39 @@ function keyPanel(e){
  return html+'<div style="height:13px"></div><button class="primary" onclick="saveKeys(\''+e.id+'\')">Guardar clave de respuestas</button></section>';
 }
 function toggleKey(button){let item=button.dataset.item,was=button.classList.contains("chosen");document.querySelectorAll('[data-item="'+item+'"][data-option]').forEach(x=>x.classList.remove("chosen"));if(!was)button.classList.add("chosen");}
+
 async function saveKeys(id){
- const e=examById(id);if(!e)return;
- const values=[];for(let i=1;i<=count(e);i++){
-  const chosen=document.querySelector('[data-item="'+i+'"][data-option].chosen');
-  const voided=document.querySelector('.keyVoid[data-item="'+i+'"]');
-  values.push({exam_id:id,workspace_id:state.workspace.id,owner_id:owner(),item_number:i,answer:chosen?chosen.dataset.option:null,is_voided:!!(voided&&voided.checked),points:1,penalty:0});
- }
- try{busy(true);await api("POST","/rest/v1/omr_answer_keys?on_conflict=exam_id,item_number",values);await refresh();notice("Clave guardada");}
- catch(e){notice(e.message)}finally{busy(false);}
+  const exam=examById(id);if(!exam)return;
+  const rows=[];
+  for(let i=1;i<=count(exam);i++){
+    const selected=document.querySelector('[data-item="'+i+'"][data-option].chosen');
+    const voided=document.querySelector('.keyVoid[data-item="'+i+'"]');
+    rows.push({exam_id:id,workspace_id:state.workspace.id,owner_id:state.workspace.id,
+      item_number:i,answer:selected?selected.dataset.option:null,
+      is_voided:!!(voided&&voided.checked),points:1,penalty:0});
+  }
+  state.keys=state.keys.filter(k=>k.exam_id!==id).concat(rows);
+  saveCache();render();notice("Clave guardada");scheduleSync();
 }
+
 function studentPanel(){
  return '<section class="box"><h3>Agregar estudiante</h3><form onsubmit="createStudent(event)"><label>Nombre completo</label><input id="studentName" required maxlength="200"><label>Código / identificación (opcional)</label><input id="studentCode" maxlength="80"><div style="height:14px"></div><button class="primary">Agregar estudiante</button></form></section>'+
  '<section class="box"><h3>Estudiantes · '+state.students.length+'</h3>'+(state.students.length?state.students.map(s=>'<div class="item"><div><b>'+safe(s.full_name)+'</b><p>'+safe(s.external_id||"Sin código")+'</p></div></div>').join(""):'<p class="muted">No has agregado estudiantes.</p>')+'</section>';
 }
+
 async function createStudent(ev){
- ev.preventDefault();
- const name=document.getElementById("studentName").value.trim(),external=document.getElementById("studentCode").value.trim()||null;
- try{busy(true);await api("POST","/rest/v1/omr_students",{workspace_id:state.workspace.id,owner_id:owner(),full_name:name,external_id:external});await refresh();notice("Estudiante guardado");}
- catch(e){notice(e.message)}finally{busy(false);}
+  ev.preventDefault();
+  const full_name=document.getElementById("studentName").value.trim();
+  const external_id=document.getElementById("studentCode").value.trim()||null;
+  if(!full_name)return notice("Ingresa el nombre");
+  if(external_id&&state.students.some(s=>s.external_id&&s.external_id.toLowerCase()===external_id.toLowerCase()))
+    return notice("Ese código de estudiante ya existe");
+  state.students.push({id:uuid(),workspace_id:state.workspace.id,owner_id:state.workspace.id,
+    full_name,external_id,attributes:{},created_at:new Date().toISOString()});
+  state.students.sort((a,b)=>a.full_name.localeCompare(b.full_name));
+  saveCache();render();notice("Estudiante guardado");scheduleSync();
 }
+
 function scanPanel(){
  let html='<section class="box"><h3>Tomar una fotografía</h3><label>Examen</label><select onchange="state.examId=this.value;state.photo=\'\';state.compressed=\'\';render()"><option value="">Selecciona…</option>'+
  state.exams.map(e=>'<option value="'+e.id+'" '+(state.examId===e.id?"selected":"")+'>'+safe(e.title)+'</option>').join("")+'</select><label>Estudiante</label><select onchange="state.studentId=this.value"><option value="">Sin asignar</option>'+
@@ -190,26 +238,32 @@ function score(e,answers){
  for(let i=1;i<=count(e);i++){let k=ref[i];if(!k||k.is_voided||!k.answer)continue;total++;if(answers[i]===k.answer){correct++;points+=Number(k.points||1);}else if(answers[i])points-=Number(k.penalty||0);}
  return {correct,total,points:Math.round(points*1000)/1000};
 }
+
 async function saveScan(){
- const e=examById(state.examId);if(!e||!state.photo)return;
- if(!state.compressed){notice("La fotografía aún no tiene una conversión WebP válida.");return;}
- const binary=state.compressed.split(",")[1];
- if(!binary||binary.length*.75>3*1024*1024){notice("Imagen demasiado grande. Usa una foto de menor resolución.");return;}
- const id=uuid(),imagePath=owner()+"/"+e.id+"/"+id+".webp";
- const grade=score(e,state.answers);
- try{
-  busy(true);
-  await api("POST","/storage/v1/object/omr-scans/"+imagePath,null,binary);
-  await api("POST","/rest/v1/omr_scans",{
-   id,exam_id:e.id,workspace_id:state.workspace.id,owner_id:owner(),student_id:state.studentId||null,
-   image_path:imagePath,status:"graded",detected_answers:state.answers,reviewed_answers:state.answers,
-   scan_metadata:{source:"EncisoOMR 0.1.0",correct:grade.correct,graded_items:grade.total,unverified:state.uncertain.length},
-   score:grade.points
-  });
-  state.photo="";state.compressed="";state.answers={};state.uncertain=[];
-  await refresh();state.tab="reports";render();notice("Imagen WebP y respuestas guardadas.");
- }catch(err){notice("No se guardó: "+err.message);}finally{busy(false);}
+  const exam=examById(state.examId);if(!exam||!state.photo)return;
+  if(!state.compressed||!state.compressed.startsWith("data:image/webp;base64,"))
+    return notice("La fotografía no se pudo convertir a WebP");
+  const base64=state.compressed.split(",")[1];
+  if(!base64||base64.length*.75>3*1024*1024)return notice("Foto demasiado grande");
+  const id=uuid(),grade=score(exam,state.answers),now=new Date().toISOString();
+  try{
+    busy(true);
+    await EncisoStore.saveImage(id,state.compressed);
+    state.scans.unshift({
+      id,exam_id:exam.id,student_id:state.studentId||null,
+      workspace_id:state.workspace.id,owner_id:state.workspace.id,image_path:null,status:"graded",
+      detected_answers:Object.assign({},state.answers),
+      reviewed_answers:Object.assign({},state.answers),
+      scan_metadata:{source:"EncisoOMR 0.1.1",correct:grade.correct,
+        graded_items:grade.total,unverified:state.uncertain.length,storage:"device"},
+      score:grade.points,scanned_at:now,updated_at:now
+    });
+    state.photo="";state.compressed="";state.answers={};state.uncertain=[];state.tab="reports";
+    await refresh();notice("Imagen WebP y resultado guardados en el dispositivo");scheduleSync();
+  }catch(error){notice("Error de guardado: "+error.message);}
+  finally{busy(false);}
 }
+
 function reportPanel(){
  let html='<div class="grid3">'+tile(state.scans.length,"Escaneos")+tile(state.scans.filter(s=>s.status==="graded").length,"Calificados")+tile(state.scans.filter(s=>s.image_path).length,"Con fotografía")+'</div>'+
  '<section class="box"><h3>Resultados</h3><div class="tablewrap"><table><thead><tr><th>Estudiante</th><th>Examen</th><th>Puntos</th><th>Fecha</th></tr></thead><tbody>';
@@ -217,10 +271,21 @@ function reportPanel(){
  html+='</tbody></table></div>'+(state.scans.length?"":'<p class="muted">Aún no hay hojas calificadas.</p>')+'</section>';
  return html;
 }
+
 function settingsPanel(){
- return '<section class="box"><h3>Conexión</h3><p><b>Supabase EncisoOMR</b></p><p class="small muted">lsbwuwpvesdkwrwffjkc</p><p style="margin-top:11px"><b>Usuario:</b> '+safe(state.session.user&&state.session.user.email||"Cuenta registrada")+'</p><p class="muted small">Las claves y fotografías se guardan en servicios privados con controles por usuario.</p><div style="height:15px"></div><div class="row"><button onclick="updateNow()">Actualizar datos</button><button class="danger" onclick="signOut()">Salir</button></div></section><section class="box"><h3>Alcance de la primera beta</h3><div class="notice">El reconocimiento óptico es experimental y solo reconoce nuestras hojas. Comprueba manualmente las respuestas y evita usar estas calificaciones en evaluaciones oficiales hasta validar su precisión.</div></section>';
+  const status=state.cloudStatus==="synced"?"Datos sincronizados con Supabase":
+    state.cloudStatus==="syncing"?"Sincronizando…":"Datos guardados en este dispositivo";
+  return '<section class="box"><h3>Estado de tus datos</h3><p><b>'+safe(status)+'</b></p>'+
+    '<p class="muted small">La aplicación funciona sin registro, usuario o contraseña. Los cambios se conservan primero en este teléfono.</p>'+
+    '<div style="height:14px"></div><button class="primary" onclick="syncNow()">Sincronizar ahora</button></section>'+
+    '<section class="box"><h3>Almacenamiento y privacidad</h3>'+
+    '<p class="muted small">Proyecto EncisoOMR. Fotografías WebP locales y almacenamiento privado en Supabase cuando esté habilitada la sincronización.</p>'+
+    '<div class="notice" style="margin-top:12px">Desinstalar la aplicación o borrar sus datos puede hacerte perder tus evaluaciones y el acceso a las copias privadas en la nube si utilizas una sesión anónima. Conserva respaldos.</div></section>'+
+    '<section class="box"><h3>Escáner experimental</h3>'+
+    '<p class="muted small">Comprueba siempre las respuestas detectadas antes de usar sus calificaciones.</p></section>';
 }
-async function updateNow(){try{await refresh();notice("Datos actualizados");}catch(e){notice(e.message);}}
+async function updateNow(){await syncNow();}
+
 function printSheet(id){
  const e=examById(id);if(!e)return;
  const n=count(e),opts=choices(e);

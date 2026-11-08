@@ -18,10 +18,15 @@ jobs:
         with:
           gradle-version: '8.9'
       - run: ls "$ANDROID_HOME/platforms" && ls "$ANDROID_HOME/build-tools"
+      - name: Validate JavaScript
+        run: |
+          node --check web/local-store.js
+          node --check web/omr.js
+          node --check web/app.js
       - run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: EncisoOMR-v0.1.0-debug
+          name: EncisoOMR-v0.1.1-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
       - name: Publish release
@@ -29,8 +34,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v0.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload v0.1.0 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.0-debug.apk" --clobber --repo "$GITHUB_REPOSITORY"
+          if gh release view v0.1.1 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v0.1.1 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.1-debug.apk" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create v0.1.0 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.0-debug.apk" --repo "$GITHUB_REPOSITORY" --title "EncisoOMR v0.1.0 (beta)" --notes "Primera APK de prueba con Supabase. Motor OMR experimental; verifica las respuestas antes de usar notas." --prerelease
+            gh release create v0.1.1 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.1-debug.apk" --repo "$GITHUB_REPOSITORY" --title "EncisoOMR v0.1.1 (beta)" --notes "Primera APK de prueba con Supabase. Motor OMR experimental; verifica las respuestas antes de usar notas." --prerelease
           fi

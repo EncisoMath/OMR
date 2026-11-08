@@ -1,10 +1,12 @@
-# EncisoOMR — Android + Web · v0.1.0 (beta)
+# EncisoOMR — Android + Web · v0.1.1 (beta)
 
 **Proyecto nuevo.** El código antiguo de Roque OMR fue eliminado de `main` y reemplazado por una aplicación original que utiliza exclusivamente **Supabase EncisoOMR** (`lsbwuwpvesdkwrwffjkc`). No utiliza código fuente de EvalBee ni recursos propietarios.
 
 ## Funciones de esta primera compilación
 
-- Registro e inicio de sesión por Supabase Auth.
+- Inicio directo, sin pantallas de acceso ni contraseñas.
+- Guardado inmediato sin conexión para exámenes, claves, estudiantes y fotografías WebP.
+- Sincronización privada automática cuando Supabase permite iniciar sesiones anónimas.
 - Crear exámenes de hasta **100 preguntas**, con 2 a 5 opciones.
 - Claves de respuestas editables y preguntas anuladas.
 - Registro de estudiantes y códigos.
@@ -19,11 +21,11 @@
 
 **Beta de prueba.** La lectura óptica requiere validación con papel impreso y teléfonos reales. **No usar para calificaciones oficiales sin revisar todas las respuestas.** No hay todavía paridad completa con EvalBee; faltan plantillas complejas, preguntas numéricas, importaciones masivas, trabajo compartido, reportes avanzados y sincronización offline de escritura. Las herramientas implementadas son gratuitas para los usuarios; se aplican las cuotas de infraestructura de Supabase.
 
-Los datos solo se sincronizan cuando hay internet. Si se pierde conexión se muestran datos en caché, pero las nuevas operaciones todavía requieren conexión.
+Las evaluaciones se guardan localmente, incluso sin conexión. Las fotografías WebP utilizan IndexedDB. La sincronización remota es automática al conectar y requiere que la opción Anonymous Sign-Ins esté habilitada en Supabase EncisoOMR. El usuario nunca ve un formulario de acceso. Una identidad anónima puede perderse si borras los datos de la app o cambias de dispositivo.
 
 ## Descargar APK
 
-La automatización `Build EncisoOMR APK` compila el APK de prueba (Android 10+). Tras una compilación exitosa, publica `EncisoOMR-v0.1.0-debug.apk` en **GitHub Releases**. La versión debug no es una firma de distribución.
+La automatización `Build EncisoOMR APK` compila el APK de prueba (Android 10+). Tras una compilación exitosa, publica `EncisoOMR-v0.1.1-debug.apk` en **GitHub Releases**. La versión debug no es una firma de distribución.
 
 ## Compilar
 
