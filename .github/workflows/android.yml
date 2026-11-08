@@ -1,61 +1,37 @@
-name: Android APK
+name: Build EncisoOMR APK
 on:
   push:
-    branches: [main, "feature/**", "fix/**"]
-  pull_request:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - name: Android SDK
-        run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME/platforms"
-          ls "$ANDROID_HOME/build-tools"
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.9"
-      - name: Compilar APK
-        run: gradle --no-daemon --stacktrace assembleDebug
-      - name: Descargar APK
-        uses: actions/upload-artifact@v4
+          gradle-version: '8.9'
+      - run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - run: gradle --no-daemon :app:assembleDebug
+      - uses: actions/upload-artifact@v4
         with:
-          name: RoqueOMR-debug-apk
+          name: EncisoOMR-v0.1.0-debug
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
           if-no-files-found: error
-      - name: Preparar PDFs A4
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Generar hojas de muestra
-        run: |
-          python -m pip install reportlab
-          python scripts/make_samples.py --out-dir dist
-      - name: Publicar APK y PDF en GitHub Releases
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view v1.2.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v1.2.0 ya publicada."
+          if gh release view v0.1.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload v0.1.0 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.0-debug.apk" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create v1.2.0 \
-              "app/build/outputs/apk/debug/app-debug.apk#RoqueOMR_v1.2.0_debug.apk" \
-              dist/RoqueOMR_Hoja_Muestra_40_Blanco.pdf \
-              dist/RoqueOMR_Hoja_Muestra_40_Resuelta.pdf \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Roque OMR v1.2.0 - Beta" \
-              --notes "Nuevo reconocimiento: seis guías negras con centro blanco, validación de homografía A4, dos marcadores laterales y cabecera. Corrige falsas detecciones de burbujas como esquinas. Utiliza solamente hojas PDF v1.2; las anteriores no son compatibles. Beta: revisar antes de calificar oficialmente." \
-              --prerelease \
-              --target "$GITHUB_SHA"
+            gh release create v0.1.0 "app/build/outputs/apk/debug/app-debug.apk#EncisoOMR-v0.1.0-debug.apk" --repo "$GITHUB_REPOSITORY" --title "EncisoOMR v0.1.0 (beta)" --notes "Primera APK de prueba con Supabase. Motor OMR experimental; verifica las respuestas antes de usar notas." --prerelease
           fi

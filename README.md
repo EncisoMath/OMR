@@ -1,51 +1,44 @@
-# EncisoOMR
+# EncisoOMR — Android + Web · v0.1.0 (beta)
 
-Aplicación Android y plataforma web de lectura óptica de respuestas (OMR), con código propio y sincronización mediante **Supabase**. Objetivo: cubrir de forma gratuita las funciones principales de un sistema de evaluación OMR completo, sin suscripciones ni anuncios obligatorios.
+**Proyecto nuevo.** El código antiguo de Roque OMR fue eliminado de `main` y reemplazado por una aplicación original que utiliza exclusivamente **Supabase EncisoOMR** (`lsbwuwpvesdkwrwffjkc`). No utiliza código fuente de EvalBee ni recursos propietarios.
 
-> Estado: **inicio de migración**. El código Android existente en `main` todavía es Roque OMR v1.2.0, un prototipo local. **No está conectado aún a Supabase**. No se debe considerar lista la nueva aplicación ni un escáner verificado para notas oficiales.
+## Funciones de esta primera compilación
 
-## Proyectos de trabajo
+- Registro e inicio de sesión por Supabase Auth.
+- Crear exámenes de hasta **100 preguntas**, con 2 a 5 opciones.
+- Claves de respuestas editables y preguntas anuladas.
+- Registro de estudiantes y códigos.
+- Generación de hojas A4 e impresión a PDF con 4 marcadores negros.
+- Cámara Android e importación de fotografías.
+- Escáner OMR experimental para **las hojas EncisoOMR**; corrección manual.
+- Calificación a partir de las claves; almacenamiento de respuestas y resultados.
+- Fotografías comprimidas en **WebP** dentro del bucket privado `omr-scans`.
+- Interfaz web común y aplicación Android basada en WebView.
 
-- Repositorio: `EncisoMath/OMR`
-- Supabase exclusivamente: **EncisoOMR**, ref `lsbwuwpvesdkwrwffjkc`
-- URL del proyecto: `https://lsbwuwpvesdkwrwffjkc.supabase.co`
-- Respaldo del prototipo Android anterior: rama `archive/roque-omr-v1.2.0`
+## Estado
 
-## Estado implementado
+**Beta de prueba.** La lectura óptica requiere validación con papel impreso y teléfonos reales. **No usar para calificaciones oficiales sin revisar todas las respuestas.** No hay todavía paridad completa con EvalBee; faltan plantillas complejas, preguntas numéricas, importaciones masivas, trabajo compartido, reportes avanzados y sincronización offline de escritura. Las herramientas implementadas son gratuitas para los usuarios; se aplican las cuotas de infraestructura de Supabase.
 
-- [x] Proyecto de Supabase separado y acceso confirmado
-- [x] Base de datos inicial: espacios personales, exámenes, estudiantes, clave de respuestas, escaneos y eventos de sincronización
-- [x] RLS habilitado en las tablas iniciales; acceso de propietario por cuenta
-- [x] Bucket privado `omr-scans` con tipo MIME `image/webp`, máximo de 3 MiB por imagen, rutas que comienzan por UID
-- [x] Migración reproducible en `supabase/sql/initial_schema.sql`
-- [ ] Autenticación Android y web
-- [ ] Lectura/escritura a través de Supabase desde Android
-- [ ] Captura original, escaneo OMR, compresión WebP posterior, cola offline y sincronización
-- [ ] Editor completo de exámenes y plantillas de respuesta
-- [ ] Importación, exportación, análisis, reportes y colaboración docente
-- [ ] Interfaz web completa
-- [ ] Compilación y prueba del nuevo APK
+Los datos solo se sincronizan cuando hay internet. Si se pierde conexión se muestran datos en caché, pero las nuevas operaciones todavía requieren conexión.
 
-## Arquitectura
+## Descargar APK
 
-`Android (Kotlin, CameraX, OMR local, cola offline)` + `Web` → `Supabase Auth + PostgreSQL con RLS + Storage privado`.
+La automatización `Build EncisoOMR APK` compila el APK de prueba (Android 10+). Tras una compilación exitosa, publica `EncisoOMR-v0.1.0-debug.apk` en **GitHub Releases**. La versión debug no es una firma de distribución.
 
-Se conservará la máxima precisión posible: el algoritmo de detección trabaja con la imagen original, **antes** de la compresión a WebP. Un escaneo se considera válido solo después de revisar marcas dudosas. Las imágenes y los resultados se sincronizarán por separado para evitar pérdidas de datos.
+## Compilar
 
-Los usuarios tendrán todas las capacidades implementadas disponibles sin suscripción. El backend **no** tiene cuota ilimitada: los límites y costos de infraestructura siguen aplicando.
+Gradle 8.9 + JDK 17 + Android SDK 35:
 
-## Seguridad y privacidad
+```bash
+gradle :app:assembleDebug
+```
 
-- No publicar contraseñas, claves secretas ni claves `service_role` en GitHub o en las aplicaciones.
-- Las tablas usan RLS y el bucket `omr-scans` es privado.
-- Los nombres de estudiantes, imágenes de hojas y resultados son datos sensibles; no deben cargarse en repositorios públicos.
-- Antes de permitir organizaciones y docentes colaboradores debe añadirse un sistema de membresías y políticas de autorización verificadas.
-- Para cumplir con las normas de privacidad aplicables a menores, definir retención y eliminación de fotografías, y controles de acceso.
+La interfaz está en `web/`. Android la carga como asset local; un puente Java realiza peticiones HTTPS a Supabase. En el navegador se emplea `fetch`.
 
-## Prototipo anterior
+## Base de datos
 
-El código fuente original del lector Android sigue disponible en `archive/roque-omr-v1.2.0`. Detectaba hojas propias con seis marcas y generaba PDF; está sin validar en distintos teléfonos. Se evaluará qué algoritmos aprovechar con implementación propia.
+`supabase/sql/initial_schema.sql` representa el esquema inicial aplicado al proyecto **EncisoOMR**. Incluye RLS privada por propietario y bucket `omr-scans` de imágenes WebP. No publicar claves `service_role` ni fotografías personales en GitHub.
 
-## Licencias y referencia de producto
+## Cambios respecto al proyecto anterior
 
-La aplicación se desarrollará con código original. La referencia de experiencia puede ser EvalBee 5.8.4, pero no se incorporan código, marcas ni recursos visuales protegidos de terceros.
+Solo existe código fuente nuevo en la rama principal. Se eliminó todo el árbol Java/Kotlin previo (`com.encisomath.roqueomr`), sus scripts y su flujo de construcción. La rama de archivo `archive/roque-omr-v1.2.0` conserva una copia histórica independiente.
